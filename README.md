@@ -1,24 +1,79 @@
-# API Students
+# API Students (Modul 3 - PostgreSQL & Repository Pattern)
 
-REST API untuk mengelola data mahasiswa, dibuat dengan Go Fiber.
+REST API untuk mengelola data mahasiswa dengan database PostgreSQL menggunakan pola Repository Pattern.
 
-## Cara Menjalankan
+## Persyaratan Sistem
 
-```bash
-go run .
+- Go 1.22 atau lebih baru
+- PostgreSQL 15 atau lebih baru
+- Git
+
+## Daftar Variabel Environment (`.env`)
+
+Aplikasi ini membutuhkan konfigurasi environment berikut yang disimpan di berkas `.env` pada folder root:
+
+```env
+APP_PORT=3000
+
+DB_HOST=127.0.0.1
+DB_PORT=5432
+DB_USER=koleksi_admin
+DB_PASSWORD=
+DB_NAME=api_students
+DB_SSLMODE=disable
+DB_MAX_CONNS=10
 ```
 
-Server berjalan di `http://localhost:3000`
+*Catatan: Pastikan menggunakan `DB_HOST=127.0.0.1` jika user `koleksi_admin` menggunakan metode autentikasi `trust`.*
 
-## Kontrak API
+---
+
+## Cara Menyiapkan Database dari Nol
+
+### 1. Buat Database
+Buka terminal dan buat database bernama `api_students` menggunakan user `koleksi_admin` dengan perintah berikut:
+```bash
+psql -h 127.0.0.1 -U koleksi_admin -d postgres -c "CREATE DATABASE api_students"
+```
+
+### 2. Jalankan Migrasi Tabel
+Jalankan berkas migrasi SQL untuk membuat tabel dan indeks:
+```bash
+psql -h 127.0.0.1 -U koleksi_admin -d api_students -f migrations/001_create_students.sql
+```
+
+---
+
+## Skema Tabel `students`
+
+Tabel `students` memiliki struktur kolom dan indeks berikut:
+
+```sql
+CREATE TABLE IF NOT EXISTS students (
+    id         SERIAL        PRIMARY KEY,
+    nim        VARCHAR(20)   NOT NULL,
+    name       VARCHAR(100)  NOT NULL,
+    grade      NUMERIC(5,2)  NOT NULL DEFAULT 0,
+    is_active  BOOLEAN       NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMPTZ   NOT NULL DEFAULT NOW()
+);
+```
+
+### Indeks (Indexes):
+1.  `PRIMARY KEY (id)`: Indeks otomatis pada kolom ID.
+2.  `students_nim_lower_key` (`UNIQUE INDEX`): Menjamin keunikan NIM (case-insensitive) menggunakan `LOWER(nim)`.
+3.  `students_name_lower_idx` (`INDEX`): Mengoptimalkan kecepatan query pencarian nama mahasiswa menggunakan `LOWER(name)`.
+
+---
+
+## Kontrak API (Endpoints)
 
 ### Base URL
-
 ```
 /api/v1
 ```
 
-### Endpoints
+### Daftar Endpoints
 
 | Metode | Endpoint | Deskripsi |
 |--------|----------|-----------|
@@ -31,174 +86,14 @@ Server berjalan di `http://localhost:3000`
 
 ---
 
-### GET `/api/v1/students`
+## Cara Menjalankan Aplikasi
 
-**Query Parameters:**
-
-| Parameter | Tipe | Default | Keterangan |
-|-----------|------|---------|------------|
-| page | int | 1 | Halaman keberapa |
-| limit | int | 10 | Jumlah per halaman (maks 50) |
-| search | string | - | Cari berdasarkan nama (case-insensitive) |
-| sort | string | id | Urutkan berdasarkan: `id`, `nim`, `name`, `grade` |
-| order | string | asc | Arah urutan: `asc` atau `desc` |
-| is_active | bool | - | Filter berdasarkan status aktif |
-
-**Contoh Request:**
-```
-GET /api/v1/students?page=1&limit=10&search=budi&sort=name&order=asc&is_active=true
-```
-
-**Contoh Response (200):**
-```json
-{
-  "success": true,
-  "message": "daftar student berhasil diambil",
-  "data": [
-    {
-      "id": 1,
-      "nim": "2024001",
-      "name": "Budi Santoso",
-      "grade": 85.5,
-      "is_active": true
-    }
-  ],
-  "meta": {
-    "page": 1,
-    "limit": 10,
-    "total": 1,
-    "total_pages": 1
-  }
-}
-```
-
----
-
-### GET `/api/v1/students/:id`
-
-**Contoh Response (200):**
-```json
-{
-  "success": true,
-  "message": "student ditemukan",
-  "data": {
-    "id": 1,
-    "nim": "2024001",
-    "name": "Budi Santoso",
-    "grade": 85.5,
-    "is_active": true
-  }
-}
-```
-
-**Status:** 200, 400 (id bukan angka), 404 (tidak ditemukan)
-
----
-
-### POST `/api/v1/students`
-
-**Contoh Body:**
-```json
-{
-  "nim": "2024001",
-  "name": "Budi Santoso",
-  "grade": 85.5
-}
-```
-
-**Contoh Response (201):**
-```json
-{
-  "success": true,
-  "message": "student berhasil dibuat",
-  "data": {
-    "id": 1,
-    "nim": "2024001",
-    "name": "Budi Santoso",
-    "grade": 85.5,
-    "is_active": true
-  }
-}
-```
-
-**Header Response:** `Location: /api/v1/students/1`
-
-**Status:** 201, 400 (JSON tidak valid), 409 (NIM duplikat), 415 (bukan JSON), 422 (validasi gagal)
-
----
-
-### PUT `/api/v1/students/:id`
-
-Mengganti **seluruh** data student. Semua field wajib dikirim.
-
-**Contoh Body:**
-```json
-{
-  "nim": "2024001",
-  "name": "Budi Santoso Edited",
-  "grade": 90.0,
-  "is_active": false
-}
-```
-
-**Status:** 200, 400, 404, 409, 415, 422
-
----
-
-### PATCH `/api/v1/students/:id`
-
-Mengubah **sebagian** data student. Hanya kirim field yang ingin diubah.
-
-**Contoh Body:**
-```json
-{
-  "grade": 95.0
-}
-```
-
-**Status:** 200, 400, 404, 409, 415, 422
-
----
-
-### DELETE `/api/v1/students/:id`
-
-Menghapus student. Tidak mengembalikan body (204 No Content).
-
-**Status:** 204, 400, 404
-
----
-
-## Daftar Status HTTP
-
-| Status | Nama | Situasi |
-|--------|------|---------|
-| 200 | OK | Pengambilan atau perubahan berhasil |
-| 201 | Created | Penambahan berhasil, disertai header Location |
-| 204 | No Content | Penghapusan berhasil |
-| 400 | Bad Request | Body bukan JSON valid, atau id bukan angka |
-| 404 | Not Found | Data tidak ditemukan |
-| 409 | Conflict | NIM sudah dipakai (duplikat) |
-| 415 | Unsupported Media Type | Content-Type bukan application/json |
-| 422 | Unprocessable Entity | Validasi isi gagal, dengan rincian per field |
-
-## Contoh Response Gagal
-
-**404 - Tidak Ditemukan:**
-```json
-{
-  "success": false,
-  "message": "student tidak ditemukan"
-}
-```
-
-**422 - Validasi Gagal:**
-```json
-{
-  "success": false,
-  "message": "validasi gagal",
-  "errors": {
-    "nim": "wajib diisi",
-    "name": "wajib diisi"
-  }
-}
-```
+1. Unduh semua dependensi proyek:
+   ```bash
+   go mod tidy
+   ```
+2. Jalankan server:
+   ```bash
+   go run .
+   ```
+3. Server akan berjalan di `http://localhost:3000`
