@@ -15,13 +15,25 @@ import (
 )
 
 // Register memasang seluruh middleware yang berlaku untuk semua route.
-// URUTAN PENTING: middleware dieksekusi sesuai urutan pemasangan.
-func Register(app *fiber.App, logger *slog.Logger) {
-	app.Use(requestid.New())       // 1. beri setiap request satu ID unik
-	app.Use(recover.New())         // 2. tangkap panic agar server tidak mati
-	app.Use(helmet.New())          // 3. pasang header keamanan dasar
-	app.Use(cors.New())            // 4. atur Cross-Origin Resource Sharing
-	app.Use(RequestLogger(logger)) // 5. catat setiap request ke log terstruktur
+func Register(app *fiber.App, logger *slog.Logger, allowedOrigins string) {
+	app.Use(requestid.New())            // 1. ID unik per request
+	app.Use(recover.New())              // 2. tangkap panic
+	app.Use(helmet.New())               // 3. header keamanan
+	app.Use(corsPolicy(allowedOrigins)) // 4. CORS dengan whitelist
+	app.Use(RequestLogger(logger))      // 5. structured logger JSON
+}
+
+// corsPolicy membatasi origin domain yang boleh memanggil API.
+func corsPolicy(allowedOrigins string) fiber.Handler {
+	if strings.TrimSpace(allowedOrigins) == "" {
+		allowedOrigins = "http://localhost:5173"
+	}
+
+	return cors.New(cors.Config{
+		AllowOrigins: allowedOrigins,
+		AllowMethods: "GET,POST,PUT,PATCH,DELETE,OPTIONS",
+		AllowHeaders: "Origin,Content-Type,Accept,Authorization",
+	})
 }
 
 // RequestLogger mencatat setiap request ke log terstruktur JSON.
@@ -29,7 +41,7 @@ func RequestLogger(logger *slog.Logger) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		start := time.Now()
 
-		err := c.Next() // serahkan ke middleware/handler berikutnya
+		err := c.Next()
 
 		requestID, _ := c.Locals("requestid").(string)
 
