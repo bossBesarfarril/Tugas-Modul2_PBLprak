@@ -187,3 +187,27 @@ func translateError(c *fiber.Ctx, err error, generalMessage string) error {
 		return helper.Fail(c, fiber.StatusInternalServerError, generalMessage)
 	}
 }
+
+func (s *StudentService) GetPrestasi(c *fiber.Ctx) error {
+	ctx, cancel := helper.RequestContext(c)
+	defer cancel()
+
+	id, valid := helper.ParamID(c)
+	if !valid {
+		return helper.Fail(c, fiber.StatusBadRequest, "id harus berupa angka positif")
+	}
+
+	// cek apakah prestasi mahasiswa itu ada apa ngga
+	_, err := s.repo.FindByID(ctx, id)
+	if err != nil {
+		return translateError(c, err, "gagal mengambil data student")
+	}
+
+	// ambil data prestasinya
+	prestasiList, err := s.repo.FindPrestasiByStudentID(ctx, id)
+	if err != nil {
+		return helper.Fail(c, fiber.StatusInternalServerError, "gagal mengambil prestasi")
+	}
+
+	return helper.Success(c, fiber.StatusOK, "daftar prestasi mahasiswa berhasil diambil", prestasiList)
+}

@@ -25,6 +25,7 @@ type StudentRepository interface {
 	Create(ctx context.Context, s model.Student) (model.Student, error)
 	Update(ctx context.Context, s model.Student) (model.Student, error)
 	Delete(ctx context.Context, id int) error
+	FindPrestasiByStudentID(ctx context.Context, studentID int) ([]model.Prestasi, error)
 }
 
 // Daftar putih kolom untuk sorting (Whitelisting)
@@ -193,4 +194,28 @@ func isUniqueViolation(err error) bool {
 		return pgErr.Code == "23505"
 	}
 	return false
+}
+
+func (r *studentPostgresRepository) FindPrestasiByStudentID(
+	ctx context.Context, studentID int,
+) ([]model.Prestasi, error) {
+	rows, err := r.pool.Query(ctx,
+		`SELECT id, id_mahasiswa, nama_prestasi, juara 
+         FROM prestasi WHERE id_mahasiswa = $1`, studentID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("mengambil prestasi: %w", err)
+	}
+	defer rows.Close()
+
+	hasil := []model.Prestasi{}
+	for rows.Next() {
+		var p model.Prestasi
+		if err := rows.Scan(&p.ID, &p.IDMahasiswa, &p.NamaPrestasi, &p.Juara); err != nil {
+			return nil, fmt.Errorf("membaca baris prestasi: %w", err)
+		}
+		hasil = append(hasil, p)
+	}
+
+	return hasil, nil
 }

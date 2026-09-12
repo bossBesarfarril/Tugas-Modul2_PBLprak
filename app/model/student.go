@@ -65,3 +65,11 @@ type ListQuery struct {
 func (q ListQuery) Offset() int {
 	return (q.Page - 1) * q.Limit
 }
+
+// Prestasi Struct
+type Prestasi struct {
+	ID           int    `json:"id"`
+	IDMahasiswa  int    `json:"id_mahasiswa"`
+	NamaPrestasi string `json:"nama_prestasi"`
+	Juara        string `json:"juara"`
+}

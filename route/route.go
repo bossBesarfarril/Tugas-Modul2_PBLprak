@@ -23,6 +23,7 @@ func Register(app *fiber.App, pool *pgxpool.Pool, studentService *service.Studen
 	students := api.Group("/students", middleware.RequireJSON)
 	students.Get("/", studentService.List)
 	students.Get("/:id", studentService.Get)
+	students.Get("/:id/prestasi", studentService.GetPrestasi)
 	students.Post("/", studentService.Create)
 	students.Put("/:id", studentService.Replace)
 	students.Patch("/:id", studentService.Patch)
