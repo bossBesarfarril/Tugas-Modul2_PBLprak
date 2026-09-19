@@ -20,7 +20,6 @@ func NewRoleRepository(db *pgxpool.Pool) RoleRepository {
 }
 
 func (r *roleRepository) LoadPermissions(ctx context.Context) (*helper.PermissionSet, error) {
-	// Ambil semua role beserta hak aksesnya (LEFT JOIN biar role yang gak punya akses tetep kebaca)
 	query := `
 		SELECT r.name, rp.permission_name 
 		FROM roles r
@@ -35,13 +34,13 @@ func (r *roleRepository) LoadPermissions(ctx context.Context) (*helper.Permissio
 	perms := helper.NewPermissionSet()
 	for rows.Next() {
 		var roleName string
-		var permName *string // Pakai pointer karena hasilnya bisa bernilai NULL (kosong)
+		var permName *string // Pakai pointer karena hasilnya bisa bernilai NULL
 
 		if err := rows.Scan(&roleName, &permName); err != nil {
 			return nil, err
 		}
 
-		// Kalau permission-nya ada (tidak NULL), masukkan ke dalam memori
+		// Kalau permission-nya ada (tidak NULL), masukkan ke dalam wadah memori
 		if permName != nil {
 			perms.Add(roleName, *permName)
 		}
