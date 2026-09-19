@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS role_permissions (
     PRIMARY KEY (role_name, permission_name)
 );
 
-ALTER TABLE students ADD COLUMN owner_id UUID REFERENCES users(id) ON DELETE SET NULL;
+ALTER TABLE students ADD COLUMN owner_id INT REFERENCES users(id) ON DELETE SET NULL;
 
 INSERT INTO roles (name) VALUES ('admin'), ('staff'), ('user') ON CONFLICT DO NOTHING;
 
