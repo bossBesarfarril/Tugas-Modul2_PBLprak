@@ -117,9 +117,9 @@ func (r *studentPostgresRepository) FindByID(
 	var s model.Student
 
 	err := r.pool.QueryRow(ctx,
-		`SELECT id, nim, name, grade, is_active, created_at 
+		`SELECT id, nim, name, grade, is_active, created_at, owner_id
          FROM students WHERE id = $1`, id,
-	).Scan(&s.ID, &s.NIM, &s.Name, &s.Grade, &s.IsActive, &s.CreatedAt)
+	).Scan(&s.ID, &s.NIM, &s.Name, &s.Grade, &s.IsActive, &s.CreatedAt, &s.OwnerID)
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -135,10 +135,10 @@ func (r *studentPostgresRepository) Create(
 	ctx context.Context, s model.Student,
 ) (model.Student, error) {
 	err := r.pool.QueryRow(ctx,
-		`INSERT INTO students (nim, name, grade, is_active) 
-         VALUES ($1, $2, $3, $4) 
+		`INSERT INTO students (nim, name, grade, is_active, owner_id) 
+         VALUES ($1, $2, $3, $4, $5) 
          RETURNING id, created_at`,
-		s.NIM, s.Name, s.Grade, s.IsActive,
+		s.NIM, s.Name, s.Grade, s.IsActive, s.OwnerID,
 	).Scan(&s.ID, &s.CreatedAt)
 
 	if err != nil {

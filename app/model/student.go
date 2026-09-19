@@ -10,6 +10,7 @@ type Student struct {
 	Grade     float64   `json:"grade"`
 	IsActive  bool      `json:"is_active"`
 	CreatedAt time.Time `json:"created_at"`
+	OwnerID   *int      `json:"owner_id,omitempty"`
 }
 
 // POST — semua field wajib
