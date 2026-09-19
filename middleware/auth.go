@@ -75,3 +75,26 @@ func LoginRateLimiter() fiber.Handler {
 		},
 	})
 }
+
+// RequirePermission adalah pengaman Level 1 untuk mencegat user yang tidak punya hak akses
+func RequirePermission(perms *helper.PermissionSet, permission string) fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		// Ambil data user dari token JWT yang sedang login
+		authUser, ok := helper.CurrentUser(c)
+		if !ok {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"error": "Anda harus login terlebih dahulu",
+			})
+		}
+
+		// Cek apakah role dari user tersebut punya izin (permission) yang diminta
+		if !perms.Can(authUser.Role, permission) {
+			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+				"error": "Akses ditolak: role tidak memiliki hak akses ini",
+			})
+		}
+
+		// Kalau punya izin, silakan lanjut ke proses berikutnya
+		return c.Next()
+	}
+}
