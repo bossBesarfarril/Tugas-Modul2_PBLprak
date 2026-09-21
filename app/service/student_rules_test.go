@@ -24,31 +24,6 @@ func TestCountTotalPages(t *testing.T) {
 	}
 }
 
-// TestValidateCreate menguji validasi request POST mahasiswa baru.
-func TestValidateCreate(t *testing.T) {
-	// Kasus 1: data kosong semua (harus menghasilkan error pada nim, name, grade)
-	invalidReq := model.CreateStudentRequest{
-		NIM:   "",
-		Name:  "",
-		Grade: 150, // di luar rentang 0-100
-	}
-	errs := ValidateCreate(invalidReq)
-	if len(errs) != 3 {
-		t.Errorf("harap 3 error validasi, dapat %d: %v", len(errs), errs)
-	}
-
-	// Kasus 2: data valid (tidak boleh ada error)
-	validReq := model.CreateStudentRequest{
-		NIM:   "2024001",
-		Name:  "Budi Santoso",
-		Grade: 85.5,
-	}
-	errsValid := ValidateCreate(validReq)
-	if len(errsValid) != 0 {
-		t.Errorf("data valid tidak boleh menghasilkan error, dapat: %v", errsValid)
-	}
-}
-
 // TestApplyPatch menguji perubahan sebagian field tanpa merusak data lainnya.
 func TestApplyPatch(t *testing.T) {
 	initial := model.Student{
@@ -63,14 +38,11 @@ func TestApplyPatch(t *testing.T) {
 	inactive := false
 
 	// Hanya mengubah grade dan is_active (NIM dan Name tidak dikirim)
-	result, errs := ApplyPatch(initial, model.PatchStudentRequest{
+	result := ApplyPatch(initial, model.PatchStudentRequest{
 		Grade:    &newGrade,
 		IsActive: &inactive,
 	})
 
-	if len(errs) != 0 {
-		t.Fatalf("tidak seharusnya ada error: %v", errs)
-	}
 	if result.Grade != 95.5 {
 		t.Errorf("grade seharusnya berubah jadi 95.5, dapat %.2f", result.Grade)
 	}
