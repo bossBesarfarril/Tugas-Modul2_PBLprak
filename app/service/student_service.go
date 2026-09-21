@@ -29,7 +29,7 @@ func (s *StudentService) List(c *fiber.Ctx) error {
 
 	students, total, err := s.repo.FindAll(ctx, q)
 	if err != nil {
-		return helper.Fail(c, fiber.StatusInternalServerError, "gagal mengambil data student")
+		return helper.Internal(errors.New("gagal mengambil data student"))
 	}
 
 	return helper.SuccessList(c, "daftar student berhasil diambil", students, &model.Meta{
@@ -46,18 +46,18 @@ func (s *StudentService) Get(c *fiber.Ctx) error {
 
 	id, valid := helper.ParamID(c)
 	if !valid {
-		return helper.Fail(c, fiber.StatusBadRequest, "id harus berupa angka positif")
+		return helper.BadRequest("id harus berupa angka positif")
 	}
 
 	student, err := s.repo.FindByID(ctx, id)
 	if err != nil {
-		return translateError(c, err, "gagal mengambil data student")
+		return translateError(err, "student")
 	}
 
 	// Pengaman Level 2: Cek kepemilikan sebelum melihat detail
 	authUser, _ := helper.CurrentUser(c)
 	if !CanAccessStudent(s.perms, authUser.Role, authUser.UserID, student.OwnerID, "student:read:any") {
-		return helper.Fail(c, fiber.StatusForbidden, "Akses ditolak: Anda tidak berhak melihat data ini")
+		return helper.Forbidden("Akses ditolak: Anda tidak berhak melihat data ini")
 	}
 
 	return helper.Success(c, fiber.StatusOK, "student ditemukan", student)
@@ -69,14 +69,14 @@ func (s *StudentService) Create(c *fiber.Ctx) error {
 
 	var req model.CreateStudentRequest
 	if err := c.BodyParser(&req); err != nil {
-		return helper.Fail(c, fiber.StatusBadRequest, "body harus berupa JSON yang valid")
+		return helper.BadRequest("body harus berupa JSON yang valid")
 	}
 
 	req.NIM = strings.TrimSpace(req.NIM)
 	req.Name = strings.TrimSpace(req.Name)
 
 	if errs := ValidateCreate(req); len(errs) > 0 {
-		return helper.FailValidation(c, errs)
+		return helper.Validation(errs)
 	}
 
 	// Ambil identitas pembuat data dari token JWT
@@ -90,7 +90,7 @@ func (s *StudentService) Create(c *fiber.Ctx) error {
 		OwnerID:  &authUser.UserID, // Set pemilik data secara otomatis
 	})
 	if err != nil {
-		return translateError(c, err, "gagal menyimpan student")
+		return translateError(err, "student")
 	}
 
 	return helper.Created(c, "student berhasil dibuat", newStudent,
@@ -103,30 +103,30 @@ func (s *StudentService) Replace(c *fiber.Ctx) error {
 
 	id, valid := helper.ParamID(c)
 	if !valid {
-		return helper.Fail(c, fiber.StatusBadRequest, "id harus berupa angka positif")
+		return helper.BadRequest("id harus berupa angka positif")
 	}
 
 	var req model.ReplaceStudentRequest
 	if err := c.BodyParser(&req); err != nil {
-		return helper.Fail(c, fiber.StatusBadRequest, "body harus berupa JSON yang valid")
+		return helper.BadRequest("body harus berupa JSON yang valid")
 	}
 
 	req.NIM = strings.TrimSpace(req.NIM)
 	req.Name = strings.TrimSpace(req.Name)
 
 	if errs := ValidateReplace(req); len(errs) > 0 {
-		return helper.FailValidation(c, errs)
+		return helper.Validation(errs)
 	}
 
 	current, err := s.repo.FindByID(ctx, id)
 	if err != nil {
-		return translateError(c, err, "gagal mengambil data student")
+		return translateError(err, "student")
 	}
 
 	// Pengaman Level 2: Cek kepemilikan sebelum mengedit
 	authUser, _ := helper.CurrentUser(c)
 	if !CanAccessStudent(s.perms, authUser.Role, authUser.UserID, current.OwnerID, "student:update:any") {
-		return helper.Fail(c, fiber.StatusForbidden, "Akses ditolak: Anda tidak berhak mengubah data ini")
+		return helper.Forbidden("Akses ditolak: Anda tidak berhak mengubah data ini")
 	}
 
 	result, err := s.repo.Update(ctx, model.Student{
@@ -137,7 +137,7 @@ func (s *StudentService) Replace(c *fiber.Ctx) error {
 		IsActive: req.IsActive,
 	})
 	if err != nil {
-		return translateError(c, err, "gagal memperbarui student")
+		return translateError(err, "student")
 	}
 
 	return helper.Success(c, fiber.StatusOK, "student berhasil diganti seluruhnya", result)
@@ -149,37 +149,37 @@ func (s *StudentService) Patch(c *fiber.Ctx) error {
 
 	id, valid := helper.ParamID(c)
 	if !valid {
-		return helper.Fail(c, fiber.StatusBadRequest, "id harus berupa angka positif")
+		return helper.BadRequest("id harus berupa angka positif")
 	}
 
 	var req model.PatchStudentRequest
 	if err := c.BodyParser(&req); err != nil {
-		return helper.Fail(c, fiber.StatusBadRequest, "body harus berupa JSON yang valid")
+		return helper.BadRequest("body harus berupa JSON yang valid")
 	}
 
 	if IsEmptyPatch(req) {
-		return helper.Fail(c, fiber.StatusBadRequest, "tidak ada field yang diubah")
+		return helper.BadRequest("tidak ada field yang diubah")
 	}
 
 	current, err := s.repo.FindByID(ctx, id)
 	if err != nil {
-		return translateError(c, err, "gagal mengambil data student")
+		return translateError(err, "student")
 	}
 
 	// Pengaman Level 2: Cek kepemilikan sebelum mengedit sebagian
 	authUser, _ := helper.CurrentUser(c)
 	if !CanAccessStudent(s.perms, authUser.Role, authUser.UserID, current.OwnerID, "student:update:any") {
-		return helper.Fail(c, fiber.StatusForbidden, "Akses ditolak: Anda tidak berhak mengubah data ini")
+		return helper.Forbidden("Akses ditolak: Anda tidak berhak mengubah data ini")
 	}
 
 	updated, errs := ApplyPatch(current, req)
 	if len(errs) > 0 {
-		return helper.FailValidation(c, errs)
+		return helper.Validation(errs)
 	}
 
 	result, err := s.repo.Update(ctx, updated)
 	if err != nil {
-		return translateError(c, err, "gagal memperbarui student")
+		return translateError(err, "student")
 	}
 
 	return helper.Success(c, fiber.StatusOK, "student berhasil diperbarui sebagian", result)
@@ -191,35 +191,35 @@ func (s *StudentService) Delete(c *fiber.Ctx) error {
 
 	id, valid := helper.ParamID(c)
 	if !valid {
-		return helper.Fail(c, fiber.StatusBadRequest, "id harus berupa angka positif")
+		return helper.BadRequest("id harus berupa angka positif")
 	}
 
 	current, err := s.repo.FindByID(ctx, id)
 	if err != nil {
-		return translateError(c, err, "gagal mengambil data student")
+		return translateError(err, "student")
 	}
 
 	// Pengaman Level 2: Cek kepemilikan sebelum menghapus
 	authUser, _ := helper.CurrentUser(c)
 	if !CanAccessStudent(s.perms, authUser.Role, authUser.UserID, current.OwnerID, "student:delete") {
-		return helper.Fail(c, fiber.StatusForbidden, "Akses ditolak: Anda tidak berhak menghapus data ini")
+		return helper.Forbidden("Akses ditolak: Anda tidak berhak menghapus data ini")
 	}
 
 	if err := s.repo.Delete(ctx, id); err != nil {
-		return translateError(c, err, "gagal menghapus student")
+		return translateError(err, "student")
 	}
 
 	return helper.NoContent(c)
 }
 
-func translateError(c *fiber.Ctx, err error, generalMessage string) error {
+func translateError(err error, entity string) error {
 	switch {
 	case errors.Is(err, repository.ErrNotFound):
-		return helper.Fail(c, fiber.StatusNotFound, "student tidak ditemukan")
+		return helper.NotFound(entity + " tidak ditemukan")
 	case errors.Is(err, repository.ErrDuplicate):
-		return helper.Fail(c, fiber.StatusConflict, "NIM sudah dipakai")
+		return helper.Conflict("NIM sudah dipakai")
 	default:
-		return helper.Fail(c, fiber.StatusInternalServerError, generalMessage)
+		return helper.Internal(err)
 	}
 }
 
@@ -229,23 +229,23 @@ func (s *StudentService) GetPrestasi(c *fiber.Ctx) error {
 
 	id, valid := helper.ParamID(c)
 	if !valid {
-		return helper.Fail(c, fiber.StatusBadRequest, "id harus berupa angka positif")
+		return helper.BadRequest("id harus berupa angka positif")
 	}
 
 	student, err := s.repo.FindByID(ctx, id)
 	if err != nil {
-		return translateError(c, err, "gagal mengambil data student")
+		return translateError(err, "student")
 	}
 
 	// Pengaman Level 2
 	authUser, _ := helper.CurrentUser(c)
 	if !CanAccessStudent(s.perms, authUser.Role, authUser.UserID, student.OwnerID, "student:read:any") {
-		return helper.Fail(c, fiber.StatusForbidden, "Akses ditolak: Anda tidak berhak melihat data ini")
+		return helper.Forbidden("Akses ditolak: Anda tidak berhak melihat data ini")
 	}
 
 	prestasiList, err := s.repo.FindPrestasiByStudentID(ctx, id)
 	if err != nil {
-		return helper.Fail(c, fiber.StatusInternalServerError, "gagal mengambil prestasi")
+		return helper.Internal(errors.New("gagal mengambil prestasi"))
 	}
 
 	return helper.Success(c, fiber.StatusOK, "daftar prestasi mahasiswa berhasil diambil", prestasiList)

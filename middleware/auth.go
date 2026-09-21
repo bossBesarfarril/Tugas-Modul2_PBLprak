@@ -18,8 +18,7 @@ func RequireAuth(jwtManager *helper.JWTManager) fiber.Handler {
 		token, err := bearerToken(c)
 		if err != nil {
 			c.Set("WWW-Authenticate", `Bearer realm="api"`)
-			return helper.Fail(c, fiber.StatusUnauthorized,
-				"header Authorization tidak ada atau salah bentuk")
+			return helper.Unauthorized("header Authorization tidak ada atau salah bentuk")
 		}
 
 		authUser, err := jwtManager.Parse(token)
@@ -29,9 +28,9 @@ func RequireAuth(jwtManager *helper.JWTManager) fiber.Handler {
 			// Membedakan "kedaluwarsa" dari "tidak valid" aman dilakukan:
 			// client memang perlu tahu kapan harus memanggil /auth/refresh.
 			if errors.Is(err, helper.ErrExpiredToken) {
-				return helper.Fail(c, fiber.StatusUnauthorized, "access token kedaluwarsa")
+				return helper.Unauthorized("access token kedaluwarsa")
 			}
-			return helper.Fail(c, fiber.StatusUnauthorized, "access token tidak valid")
+			return helper.Unauthorized("access token tidak valid")
 		}
 
 		// Simpan identitas user ke context locals
@@ -70,8 +69,7 @@ func LoginRateLimiter() fiber.Handler {
 		},
 		LimitReached: func(c *fiber.Ctx) error {
 			c.Set("Retry-After", "60")
-			return helper.Fail(c, fiber.StatusTooManyRequests,
-				"terlalu banyak percobaan login, coba lagi dalam satu menit")
+			return helper.TooManyRequests("terlalu banyak percobaan login, coba lagi dalam satu menit")
 		},
 	})
 }
@@ -82,16 +80,12 @@ func RequirePermission(perms *helper.PermissionSet, permission string) fiber.Han
 		// Ambil data user dari token JWT yang sedang login
 		authUser, ok := helper.CurrentUser(c)
 		if !ok {
-			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-				"error": "Anda harus login terlebih dahulu",
-			})
+			return helper.Unauthorized("Anda harus login terlebih dahulu")
 		}
 
 		// Cek apakah role dari user tersebut punya izin (permission) yang diminta
 		if !perms.Can(authUser.Role, permission) {
-			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
-				"error": "Akses ditolak: role tidak memiliki hak akses ini",
-			})
+			return helper.Forbidden("Akses ditolak: role tidak memiliki hak akses ini")
 		}
 
 		// Kalau punya izin, silakan lanjut ke proses berikutnya
