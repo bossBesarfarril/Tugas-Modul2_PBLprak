@@ -1,7 +1,10 @@
 package service
 
 import (
+	"bytes"
+	"encoding/csv"
 	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 
@@ -36,13 +39,44 @@ func (s *StudentService) List(c *fiber.Ctx) error {
 		HasMore: hasMore,
 	}
 
-	// Kalau masih ada halaman selanjutnya, buat NextCursor dari data terakhir
 	if hasMore && len(students) > 0 {
 		lastStudent := students[len(students)-1]
 		meta.NextCursor = helper.EncodeCursor(lastStudent.CreatedAt, lastStudent.ID)
 	}
 
-	return helper.SuccessList(c, "daftar student berhasil diambil", students, meta)
+	// === CONTENT NEGOTIATION DIMULAI DARI SINI ===
+	accept := c.Accepts("application/json", "text/csv")
+
+	if accept == "text/csv" {
+		c.Set("Content-Type", "text/csv")
+		c.Set("Content-Disposition", `attachment; filename="students.csv"`)
+
+		b := &bytes.Buffer{}
+		w := csv.NewWriter(b)
+
+		// Tulis baris judul (header)
+		_ = w.Write([]string{"ID", "NIM", "Name", "Grade", "IsActive"})
+
+		// Tulis data mahasiswa satu-satu
+		for _, st := range students {
+			_ = w.Write([]string{
+				strconv.Itoa(st.ID),
+				st.NIM,
+				st.Name,
+				fmt.Sprintf("%.2f", st.Grade),
+				strconv.FormatBool(st.IsActive),
+			})
+		}
+		w.Flush()
+
+		return c.Send(b.Bytes())
+	}
+
+	if accept == "application/json" {
+		return helper.SuccessList(c, "daftar student berhasil diambil", students, meta)
+	}
+
+	return helper.NotAcceptable("Format tidak didukung. Gunakan application/json atau text/csv")
 }
 
 func (s *StudentService) Get(c *fiber.Ctx) error {
