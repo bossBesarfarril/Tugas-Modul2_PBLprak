@@ -15,25 +15,25 @@ type Student struct {
 
 // POST — semua field wajib
 type CreateStudentRequest struct {
-	NIM   string  `json:"nim"`
-	Name  string  `json:"name"`
-	Grade float64 `json:"grade"`
+	NIM   string  `json:"nim"   validate:"required,nim"`
+	Name  string  `json:"name"  validate:"required,min=3,max=50"`
+	Grade float64 `json:"grade" validate:"required,min=0,max=100"`
 }
 
-// PUT — ganti seluruh isi, semua field wajib dikirim
 type ReplaceStudentRequest struct {
-	NIM      string  `json:"nim"`
-	Name     string  `json:"name"`
-	Grade    float64 `json:"grade"`
+	NIM      string  `json:"nim"       validate:"required,nim"`
+	Name     string  `json:"name"      validate:"required,min=3,max=50"`
+	Grade    float64 `json:"grade"     validate:"required,min=0,max=100"`
 	IsActive bool    `json:"is_active"`
 }
 
-// PATCH — ubah sebagian, field bertipe pointer supaya bisa bedakan
-// antara "tidak dikirim" (nil) dan "dikirim bernilai kosong"
+// Pada PATCH, pointer membedakan "tidak dikirim" (nil) dari "dikirim kosong".
+// "omitnil" dipilih karena ia melewati field yang nil (nggak dikirim), 
+// tapi bakal TETAP ngecek field yang dikirim string kosong "".
 type PatchStudentRequest struct {
-	NIM      *string  `json:"nim,omitempty"`
-	Name     *string  `json:"name,omitempty"`
-	Grade    *float64 `json:"grade,omitempty"`
+	NIM      *string  `json:"nim,omitempty"       validate:"omitnil,nim"`
+	Name     *string  `json:"name,omitempty"      validate:"omitnil,min=3,max=50"`
+	Grade    *float64 `json:"grade,omitempty"     validate:"omitnil,min=0,max=100"`
 	IsActive *bool    `json:"is_active,omitempty"`
 }
 

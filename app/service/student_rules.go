@@ -1,82 +1,29 @@
 package service
 
 import (
-	"strings"
-
 	"api-students/app/model"
 )
 
-// ValidateCreate memeriksa isian pada permintaan POST mahasiswa.
-func ValidateCreate(req model.CreateStudentRequest) map[string]string {
-	errs := map[string]string{}
 
-	if strings.TrimSpace(req.NIM) == "" {
-		errs["nim"] = "wajib diisi"
-	}
-	if strings.TrimSpace(req.Name) == "" {
-		errs["name"] = "wajib diisi"
-	}
-	if req.Grade < 0 || req.Grade > 100 {
-		errs["grade"] = "harus antara 0 dan 100"
-	}
 
-	return errs
-}
 
-// ValidateReplace memeriksa isian pada permintaan PUT mahasiswa.
-func ValidateReplace(req model.ReplaceStudentRequest) map[string]string {
-	errs := map[string]string{}
 
-	if strings.TrimSpace(req.NIM) == "" {
-		errs["nim"] = "wajib diisi pada PUT"
-	}
-	if strings.TrimSpace(req.Name) == "" {
-		errs["name"] = "wajib diisi pada PUT"
-	}
-	if req.Grade < 0 || req.Grade > 100 {
-		errs["grade"] = "harus antara 0 dan 100"
-	}
-
-	return errs
-}
-
-// ApplyPatch menerapkan perubahan sebagian dan memvalidasi nilai barunya.
-func ApplyPatch(
-	current model.Student, req model.PatchStudentRequest,
-) (model.Student, map[string]string) {
-	errs := map[string]string{}
-
+// ApplyPatch hanya bertugas menggabungkan data yang dikirim dengan data lama.
+func ApplyPatch(current model.Student, req model.PatchStudentRequest) model.Student {
 	if req.NIM != nil {
-		nim := strings.TrimSpace(*req.NIM)
-		if nim == "" {
-			errs["nim"] = "tidak boleh kosong"
-		} else {
-			current.NIM = nim
-		}
+		current.NIM = *req.NIM
 	}
-
 	if req.Name != nil {
-		name := strings.TrimSpace(*req.Name)
-		if name == "" {
-			errs["name"] = "tidak boleh kosong"
-		} else {
-			current.Name = name
-		}
+		current.Name = *req.Name
 	}
-
 	if req.Grade != nil {
-		if *req.Grade < 0 || *req.Grade > 100 {
-			errs["grade"] = "harus antara 0 dan 100"
-		} else {
-			current.Grade = *req.Grade
-		}
+		current.Grade = *req.Grade
 	}
-
 	if req.IsActive != nil {
 		current.IsActive = *req.IsActive
 	}
 
-	return current, errs
+	return current
 }
 
 // IsEmptyPatch menandai permintaan PATCH yang tidak mengirim field apa pun.
