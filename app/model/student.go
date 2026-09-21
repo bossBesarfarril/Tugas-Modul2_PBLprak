@@ -74,3 +74,12 @@ type Prestasi struct {
 	NamaPrestasi string `json:"nama_prestasi"`
 	Juara        string `json:"juara"`
 }
+
+// ErrorResponse adalah format baku untuk seluruh response kegagalan.
+type ErrorResponse struct {
+	Success   bool              `json:"success"`
+	Code      string            `json:"code"`
+	Message   string            `json:"message"`
+	Fields    map[string]string `json:"fields,omitempty"`
+	RequestID string            `json:"request_id,omitempty"`
+}
