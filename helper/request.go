@@ -3,7 +3,6 @@ package helper
 import (
 	"context"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -30,36 +29,23 @@ var allowedSort = map[string]bool{
 	"id": true, "nim": true, "name": true, "grade": true,
 }
 
-// ParseListQuery membaca query string dan memberi nilai bawaan yang aman.
-func ParseListQuery(c *fiber.Ctx) model.ListQuery {
-	q := model.ListQuery{
-		Page:   c.QueryInt("page", 1),
+// ParseCursorQuery mengambil parameter untuk Cursor Pagination.
+func ParseCursorQuery(c *fiber.Ctx) model.CursorQuery {
+	q := model.CursorQuery{
+		Cursor: c.Query("cursor", ""),
 		Limit:  c.QueryInt("limit", 10),
-		Search: strings.TrimSpace(c.Query("search")),
-		Sort:   c.Query("sort", "id"),
-		Order:  strings.ToLower(c.Query("order", "asc")),
+		Search: c.Query("search", ""),
 	}
 
-	if q.Page < 1 {
-		q.Page = 1
-	}
-	if q.Limit < 1 {
+	if q.Limit > 100 {
+		q.Limit = 100
+	} else if q.Limit <= 0 {
 		q.Limit = 10
 	}
-	if q.Limit > 50 { // batas atas 50
-		q.Limit = 50
-	}
-	if !allowedSort[q.Sort] {
-		q.Sort = "id"
-	}
-	if q.Order != "desc" {
-		q.Order = "asc"
-	}
 
-	if raw := c.Query("is_active"); raw != "" {
-		if v, err := strconv.ParseBool(raw); err == nil {
-			q.IsActive = &v
-		}
+	if active := c.Query("is_active"); active != "" {
+		val := (active == "true" || active == "1")
+		q.IsActive = &val
 	}
 
 	return q

@@ -42,29 +42,22 @@ type WebResponse struct {
 	Success bool   `json:"success"`
 	Message string `json:"message"`
 	Data    any    `json:"data,omitempty"`
-	Meta    *Meta  `json:"meta,omitempty"`
+	Meta    *CursorMeta  `json:"meta,omitempty"`
 	Errors  any    `json:"errors,omitempty"`
 }
 
-type Meta struct {
-	Page       int `json:"page"`
-	Limit      int `json:"limit"`
-	Total      int `json:"total"`
-	TotalPages int `json:"total_pages"`
+// CursorMeta balasan khusus untuk pagination berbasis Cursor
+type CursorMeta struct {
+	HasMore    bool   `json:"has_more"`
+	NextCursor string `json:"next_cursor,omitempty"`
 }
 
-type ListQuery struct {
-	Page     int
+// CursorQuery menyimpan parameter pencarian dari query params URL
+type CursorQuery struct {
+	Cursor   string
 	Limit    int
 	Search   string
-	Sort     string
-	Order    string
 	IsActive *bool
-}
-
-// Offset menghitung berapa baris yang dilewati untuk halaman ini.
-func (q ListQuery) Offset() int {
-	return (q.Page - 1) * q.Limit
 }
 
 // Prestasi Struct

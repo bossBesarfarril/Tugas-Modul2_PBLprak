@@ -4,12 +4,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
+	"strings"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"api-students/app/model"
+	"api-students/helper"
 )
 
 // Sentinel error milik repository
@@ -20,7 +23,7 @@ var (
 
 // StudentRepository adalah KONTRAK penyimpanan data mahasiswa.
 type StudentRepository interface {
-	FindAll(ctx context.Context, q model.ListQuery) ([]model.Student, int, error)
+	FindAllCursor(ctx context.Context, q model.CursorQuery) ([]model.Student, bool, error)
 	FindByID(ctx context.Context, id int) (model.Student, error)
 	Create(ctx context.Context, s model.Student) (model.Student, error)
 	Update(ctx context.Context, s model.Student) (model.Student, error)
@@ -28,13 +31,6 @@ type StudentRepository interface {
 	FindPrestasiByStudentID(ctx context.Context, studentID int) ([]model.Prestasi, error)
 }
 
-// Daftar putih kolom untuk sorting (Whitelisting)
-var kolomUrut = map[string]string{
-	"id":    "id",
-	"nim":   "nim",
-	"name":  "name",
-	"grade": "grade",
-}
 
 type studentPostgresRepository struct {
 	pool *pgxpool.Pool
@@ -45,70 +41,59 @@ func NewStudentRepository(pool *pgxpool.Pool) StudentRepository {
 	return &studentPostgresRepository{pool: pool}
 }
 
-// buildFilter menyusun bagian WHERE SQL secara dinamis dan aman
-func buildFilter(q model.ListQuery) (string, []any) {
-	where := " WHERE 1 = 1"
-	args := []any{}
+func (r *studentPostgresRepository) FindAllCursor(ctx context.Context, q model.CursorQuery) ([]model.Student, bool, error) {
+	fetchSize := q.Limit + 1
+	args := []any{fetchSize}
+	where := []string{"1=1"}
+
+	if q.Cursor != "" {
+		lastTime, lastID, err := helper.DecodeCursor(q.Cursor)
+		if err != nil {
+			return nil, false, err
+		}
+		where = append(where, "(created_at, id) < ($2, $3)")
+		args = append(args, lastTime, lastID)
+	}
 
 	if q.Search != "" {
-		where += fmt.Sprintf(" AND name ILIKE $%d", len(args)+1)
+		where = append(where, "name ILIKE $"+strconv.Itoa(len(args)+1))
 		args = append(args, "%"+q.Search+"%")
 	}
 
 	if q.IsActive != nil {
-		where += fmt.Sprintf(" AND is_active = $%d", len(args)+1)
+		where = append(where, "is_active = $"+strconv.Itoa(len(args)+1))
 		args = append(args, *q.IsActive)
 	}
 
-	return where, args
-}
+	query := `
+		SELECT id, nim, name, grade, is_active, created_at, owner_id 
+		FROM students 
+		WHERE ` + strings.Join(where, " AND ") + ` 
+		ORDER BY created_at DESC, id DESC 
+		LIMIT $1
+	`
 
-func (r *studentPostgresRepository) FindAll(
-	ctx context.Context, q model.ListQuery,
-) ([]model.Student, int, error) {
-	where, args := buildFilter(q)
-
-	// 1. Hitung total data asli untuk Meta
-	var total int
-	err := r.pool.QueryRow(ctx, "SELECT COUNT(*) FROM students"+where, args...).Scan(&total)
+	rows, err := r.pool.Query(ctx, query, args...)
 	if err != nil {
-		return nil, 0, fmt.Errorf("menghitung student: %w", err)
+		return nil, false, err
 	}
+	defer rows.Close()
 
-	// 2. Ambil data dengan sort, limit, dan offset
-	arah := "ASC"
-	if q.Order == "desc" {
-		arah = "DESC"
-	}
-
-	sqlText := fmt.Sprintf(
-		`SELECT id, nim, name, grade, is_active, created_at 
-         FROM students%s 
-         ORDER BY %s %s 
-         LIMIT $%d OFFSET $%d`,
-		where, kolomUrut[q.Sort], arah, len(args)+1, len(args)+2,
-	)
-	args = append(args, q.Limit, q.Offset())
-
-	rows, err := r.pool.Query(ctx, sqlText, args...)
-	if err != nil {
-		return nil, 0, fmt.Errorf("mengambil daftar student: %w", err)
-	}
-	defer rows.Close() // Pastikan koneksi dikembalikan ke pool
-
-	hasil := []model.Student{}
+	var students []model.Student
 	for rows.Next() {
 		var s model.Student
-		if err := rows.Scan(&s.ID, &s.NIM, &s.Name, &s.Grade, &s.IsActive, &s.CreatedAt); err != nil {
-			return nil, 0, fmt.Errorf("membaca baris student: %w", err)
+		if err := rows.Scan(&s.ID, &s.NIM, &s.Name, &s.Grade, &s.IsActive, &s.CreatedAt, &s.OwnerID); err != nil {
+			return nil, false, err
 		}
-		hasil = append(hasil, s)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, 0, fmt.Errorf("membaca hasil query: %w", err)
+		students = append(students, s)
 	}
 
-	return hasil, total, nil
+	hasMore := len(students) > q.Limit
+	if hasMore {
+		students = students[:q.Limit]
+	}
+
+	return students, hasMore, nil
 }
 
 func (r *studentPostgresRepository) FindByID(

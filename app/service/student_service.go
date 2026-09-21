@@ -25,19 +25,24 @@ func (s *StudentService) List(c *fiber.Ctx) error {
 	ctx, cancel := helper.RequestContext(c)
 	defer cancel()
 
-	q := helper.ParseListQuery(c)
+	q := helper.ParseCursorQuery(c)
 
-	students, total, err := s.repo.FindAll(ctx, q)
+	students, hasMore, err := s.repo.FindAllCursor(ctx, q)
 	if err != nil {
 		return helper.Internal(errors.New("gagal mengambil data student"))
 	}
 
-	return helper.SuccessList(c, "daftar student berhasil diambil", students, &model.Meta{
-		Page:       q.Page,
-		Limit:      q.Limit,
-		Total:      total,
-		TotalPages: CountTotalPages(total, q.Limit),
-	})
+	meta := &model.CursorMeta{
+		HasMore: hasMore,
+	}
+
+	// Kalau masih ada halaman selanjutnya, buat NextCursor dari data terakhir
+	if hasMore && len(students) > 0 {
+		lastStudent := students[len(students)-1]
+		meta.NextCursor = helper.EncodeCursor(lastStudent.CreatedAt, lastStudent.ID)
+	}
+
+	return helper.SuccessList(c, "daftar student berhasil diambil", students, meta)
 }
 
 func (s *StudentService) Get(c *fiber.Ctx) error {
