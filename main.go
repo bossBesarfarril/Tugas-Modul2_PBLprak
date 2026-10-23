@@ -34,6 +34,17 @@ func main() {
 		os.Exit(1)
 	}
 	defer pool.Close()
+	mongoClient, err := database.NewMongoClient(context.Background())
+	if err != nil {
+		logger.Error("gagal terhubung ke MongoDB", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
+	defer func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = mongoClient.Disconnect(ctx)
+	}()
+	mongoDB := mongoClient.Database(config.GetEnv("MONGO_DATABASE", "siakad_portfolio"))
 
 	jwtManager := helper.NewJWTManager(
 		jwtSecret,
@@ -52,6 +63,12 @@ func main() {
 	studentRepository := repository.NewStudentRepository(pool)
 	userRepository := repository.NewUserRepository(pool)
 	tokenRepository := repository.NewTokenRepository(pool)
+	portfolioRepository := repository.NewPortfolioRepository(mongoDB)
+	portfolioService := service.NewPortfolioService(portfolioRepository, studentRepository)
+	if err := portfolioRepository.EnsureIndexes(context.Background()); err != nil {
+		logger.Error("gagal membuat index MongoDB", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
 
 	// Menyalurkan hak akses ke Service
 	studentService := service.NewStudentService(studentRepository, perms)
@@ -64,11 +81,13 @@ func main() {
 
 	// Menyalurkan hak akses ke Route
 	app := config.NewApp(logger, route.Dependencies{
-		Pool:           pool,
-		JWT:            jwtManager,
-		Perms:          perms,
-		StudentService: studentService,
-		AuthService:    authService,
+		Pool:             pool,
+		MongoClient:      mongoClient,
+		JWT:              jwtManager,
+		Perms:            perms,
+		StudentService:   studentService,
+		AuthService:      authService,
+		PortfolioService: portfolioService,
 	})
 
 	port := config.GetEnv("APP_PORT", "3000")
