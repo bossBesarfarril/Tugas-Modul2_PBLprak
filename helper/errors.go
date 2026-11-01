@@ -68,6 +68,10 @@ func Conflict(message string) *AppError {
 	return &AppError{Status: fiber.StatusConflict, Code: CodeConflict, Message: message}
 }
 
+func ConflictWithCode(code, message string) *AppError {
+	return &AppError{Status: fiber.StatusConflict, Code: code, Message: message}
+}
+
 func Validation(fields map[string]string) *AppError {
 	return &AppError{
 		Status: fiber.StatusUnprocessableEntity, Code: CodeValidation,
