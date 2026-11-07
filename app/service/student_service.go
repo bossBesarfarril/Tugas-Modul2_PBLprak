@@ -24,6 +24,16 @@ func NewStudentService(repo repository.StudentRepository, perms *helper.Permissi
 	return &StudentService{repo: repo, perms: perms}
 }
 
+// List godoc
+//
+// @Summary   Daftar data mahasiswa
+// @Tags      students
+// @Produce   json
+// @Success   200  {object}  model.WebResponse{data=[]model.Student}
+// @Failure   401  {object}  model.ErrorResponse
+// @Failure   403  {object}  model.ErrorResponse
+// @Security  BearerAuth
+// @Router    /students [get]
 func (s *StudentService) List(c *fiber.Ctx) error {
 	ctx, cancel := helper.RequestContext(c)
 	defer cancel()
@@ -79,6 +89,17 @@ func (s *StudentService) List(c *fiber.Ctx) error {
 	return helper.NotAcceptable("Format tidak didukung. Gunakan application/json atau text/csv")
 }
 
+// Get godoc
+//
+// @Summary   Detail data seorang mahasiswa
+// @Tags      students
+// @Produce   json
+// @Param     id   path      int  true  "ID Mahasiswa"
+// @Success   200  {object}  model.WebResponse{data=model.Student}
+// @Failure   401  {object}  model.ErrorResponse
+// @Failure   404  {object}  model.ErrorResponse
+// @Security  BearerAuth
+// @Router    /students/{id} [get]
 func (s *StudentService) Get(c *fiber.Ctx) error {
 	ctx, cancel := helper.RequestContext(c)
 	defer cancel()
@@ -102,6 +123,20 @@ func (s *StudentService) Get(c *fiber.Ctx) error {
 	return helper.Success(c, fiber.StatusOK, "student ditemukan", student)
 }
 
+// Create godoc
+//
+// @Summary   Menambahkan data mahasiswa baru
+// @Tags      students
+// @Accept    json
+// @Produce   json
+// @Param     body  body      model.CreateStudentRequest  true  "Data Mahasiswa"
+// @Success   201   {object}  model.WebResponse{data=model.Student}
+// @Failure   400   {object}  model.ErrorResponse
+// @Failure   401   {object}  model.ErrorResponse
+// @Failure   409   {object}  model.ErrorResponse
+// @Failure   422   {object}  model.ErrorResponse
+// @Security  BearerAuth
+// @Router    /students [post]
 func (s *StudentService) Create(c *fiber.Ctx) error {
 	ctx, cancel := helper.RequestContext(c)
 	defer cancel()
@@ -136,6 +171,21 @@ func (s *StudentService) Create(c *fiber.Ctx) error {
 		"/api/v1/students/"+strconv.Itoa(newStudent.ID))
 }
 
+// Replace godoc
+//
+// @Summary   Memperbarui seluruh data mahasiswa (PUT)
+// @Tags      students
+// @Accept    json
+// @Produce   json
+// @Param     id    path      int                         true  "ID Mahasiswa"
+// @Param     body  body      model.CreateStudentRequest  true  "Data Baru Mahasiswa"
+// @Success   200   {object}  model.WebResponse{data=model.Student}
+// @Failure   400   {object}  model.ErrorResponse
+// @Failure   401   {object}  model.ErrorResponse
+// @Failure   404   {object}  model.ErrorResponse
+// @Failure   422   {object}  model.ErrorResponse
+// @Security  BearerAuth
+// @Router    /students/{id} [put]
 func (s *StudentService) Replace(c *fiber.Ctx) error {
 	ctx, cancel := helper.RequestContext(c)
 	defer cancel()
@@ -182,6 +232,21 @@ func (s *StudentService) Replace(c *fiber.Ctx) error {
 	return helper.Success(c, fiber.StatusOK, "student berhasil diganti seluruhnya", result)
 }
 
+// Patch godoc
+//
+// @Summary   Memperbarui sebagian data mahasiswa (PATCH)
+// @Tags      students
+// @Accept    json
+// @Produce   json
+// @Param     id    path      int                        true  "ID Mahasiswa"
+// @Param     body  body      model.PatchStudentRequest  true  "Data Parsial"
+// @Success   200   {object}  model.WebResponse{data=model.Student}
+// @Failure   400   {object}  model.ErrorResponse
+// @Failure   401   {object}  model.ErrorResponse
+// @Failure   404   {object}  model.ErrorResponse
+// @Failure   422   {object}  model.ErrorResponse
+// @Security  BearerAuth
+// @Router    /students/{id} [patch]
 func (s *StudentService) Patch(c *fiber.Ctx) error {
 	ctx, cancel := helper.RequestContext(c)
 	defer cancel()
@@ -225,6 +290,16 @@ func (s *StudentService) Patch(c *fiber.Ctx) error {
 	return helper.Success(c, fiber.StatusOK, "student berhasil diperbarui sebagian", result)
 }
 
+// Delete godoc
+//
+// @Summary   Menghapus data mahasiswa
+// @Tags      students
+// @Param     id   path  int  true  "ID Mahasiswa"
+// @Success   204  "Berhasil dihapus; tanpa body"
+// @Failure   401  {object}  model.ErrorResponse
+// @Failure   404  {object}  model.ErrorResponse
+// @Security  BearerAuth
+// @Router    /students/{id} [delete]
 func (s *StudentService) Delete(c *fiber.Ctx) error {
 	ctx, cancel := helper.RequestContext(c)
 	defer cancel()
@@ -263,6 +338,17 @@ func translateError(err error, entity string) error {
 	}
 }
 
+// GetPrestasi godoc
+//
+// @Summary   Daftar prestasi seorang mahasiswa
+// @Tags      students
+// @Produce   json
+// @Param     id   path      int  true  "ID Mahasiswa"
+// @Success   200  {object}  model.WebResponse{data=[]model.Prestasi}
+// @Failure   401  {object}  model.ErrorResponse
+// @Failure   404  {object}  model.ErrorResponse
+// @Security  BearerAuth
+// @Router    /students/{id}/prestasi [get]
 func (s *StudentService) GetPrestasi(c *fiber.Ctx) error {
 	ctx, cancel := helper.RequestContext(c)
 	defer cancel()

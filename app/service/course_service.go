@@ -25,7 +25,15 @@ func NewCourseService(
 	return &CourseService{courses: courses, outbox: outbox, tx: tx}
 }
 
-// ---------- GET /courses ----------
+// List godoc
+//
+// @Summary   Daftar seluruh kelas
+// @Tags      courses
+// @Produce   json
+// @Success   200  {object}  model.WebResponse{data=[]model.Course}
+// @Failure   401  {object}  model.ErrorResponse
+// @Security  BearerAuth
+// @Router    /courses [get]
 func (s *CourseService) List(c *fiber.Ctx) error {
 	ctx, cancel := helper.RequestContext(c)
 	defer cancel()
@@ -37,7 +45,15 @@ func (s *CourseService) List(c *fiber.Ctx) error {
 	return helper.Success(c, fiber.StatusOK, "daftar kelas berhasil diambil", courses)
 }
 
-// ---------- GET /courses/mine ----------
+// Mine godoc
+//
+// @Summary   KRS milik mahasiswa yang sedang login
+// @Tags      courses
+// @Produce   json
+// @Success   200  {object}  model.WebResponse{data=model.MyCourses}
+// @Failure   401  {object}  model.ErrorResponse
+// @Security  BearerAuth
+// @Router    /courses/mine [get]
 func (s *CourseService) Mine(c *fiber.Ctx) error {
 	ctx, cancel := helper.RequestContext(c)
 	defer cancel()
@@ -57,13 +73,24 @@ func (s *CourseService) Mine(c *fiber.Ctx) error {
 		totalCredits += course.Credits
 	}
 
-	return helper.Success(c, fiber.StatusOK, "KRS mahasiswa berhasil diambil", fiber.Map{
-		"total_credits": totalCredits,
-		"courses":       courses,
+	return helper.Success(c, fiber.StatusOK, "KRS mahasiswa berhasil diambil", model.MyCourses{
+		Courses:      courses,
+		TotalCredits: totalCredits,
+		MaxCredits:   MaxCreditsPerSemester,
 	})
 }
 
-// ---------- GET /courses/:id ----------
+// Get godoc
+//
+// @Summary   Melihat detail satu kelas
+// @Tags      courses
+// @Produce   json
+// @Param     id   path      int  true  "ID kelas"
+// @Success   200  {object}  model.WebResponse{data=model.Course}
+// @Failure   401  {object}  model.ErrorResponse
+// @Failure   404  {object}  model.ErrorResponse
+// @Security  BearerAuth
+// @Router    /courses/{id} [get]
 func (s *CourseService) Get(c *fiber.Ctx) error {
 	ctx, cancel := helper.RequestContext(c)
 	defer cancel()
@@ -84,7 +111,21 @@ func (s *CourseService) Get(c *fiber.Ctx) error {
 	return helper.Success(c, fiber.StatusOK, "data kelas berhasil diambil", course)
 }
 
-// ---------- POST /courses/:id/enroll ----------
+// Enroll godoc
+//
+// @Summary      Mendaftar ke sebuah kelas
+// @Description  Mengambil satu kursi dan mencatat event enrollment.created ke outbox dalam SATU transaction.
+// @Description  Kode error 409: COURSE_FULL, ALREADY_ENROLLED, CREDIT_LIMIT_EXCEEDED.
+// @Tags         courses
+// @Produce      json
+// @Param        id   path      int  true  "ID kelas"
+// @Success      201  {object}  model.WebResponse{data=model.Course}
+// @Header       201  {string}  Location  "URL kelas yang baru didaftari"
+// @Failure      401  {object}  model.ErrorResponse
+// @Failure      404  {object}  model.ErrorResponse
+// @Failure      409  {object}  model.ErrorResponse  "Kuota penuh, sudah terdaftar, atau batas SKS terlampaui"
+// @Security     BearerAuth
+// @Router       /courses/{id}/enroll [post]
 func (s *CourseService) Enroll(c *fiber.Ctx) error {
 	ctx, cancel := helper.RequestContext(c)
 	defer cancel()
@@ -104,24 +145,42 @@ func (s *CourseService) Enroll(c *fiber.Ctx) error {
 		repo := s.courses.WithTx(tx)
 		outboxRepo := s.outbox.WithTx(tx)
 
-		// 1. Kunci baris kelas yang dituju
+		// 1. Kunci KRS milik mahasiswa ini (Pessimistic locking) agar pendaftaran serentak antri tertib
+		if err := repo.LockStudent(ctx, current.UserID); err != nil {
+			return err
+		}
+
+		// 2. Periksa batas SKS mahasiswa
+		targetCourse, err := repo.FindByID(ctx, courseID)
+		if err != nil {
+			return err
+		}
+		taken, err := repo.SumCredits(ctx, current.UserID)
+		if err != nil {
+			return err
+		}
+		if !WithinCreditLimit(taken, targetCourse.Credits) {
+			return repository.ErrCreditLimitExceeded
+		}
+
+		// 3. Kunci baris kelas yang dituju
 		if err := repo.LockCourses(ctx, courseID); err != nil {
 			return err
 		}
 
-		// 2. Tambah peserta secara atomik
-		var err error
-		enrolled, err = repo.IncrementEnrolled(ctx, courseID)
-		if err != nil {
-			return err
+		// 4. Tambah peserta secara atomik
+		var errInc error
+		enrolled, errInc = repo.IncrementEnrolled(ctx, courseID)
+		if errInc != nil {
+			return errInc
 		}
 
-		// 3. Catat pendaftarannya. Bila sudah terdaftar, error membatalkan langkah sebelumnya.
+		// 5. Catat pendaftarannya. Bila sudah terdaftar, error membatalkan langkah sebelumnya.
 		if err := repo.InsertEnrollment(ctx, courseID, current.UserID); err != nil {
 			return err
 		}
 
-		// 4. Catat event ke outbox DI DALAM transaction yang sama.
+		// 6. Catat event ke outbox DI DALAM transaction yang sama.
 		// Catatan D.1: Modul asli memanggil s.outbox.Insert(ctx, ...) tanpa WithTx(tx).
 		// Perbaikan: outboxRepo.Insert(ctx, ...) agar terikat pada transaction yang sama.
 		return outboxRepo.Insert(ctx, model.EventEnrollmentCreated, model.EnrollmentEvent{
@@ -134,6 +193,9 @@ func (s *CourseService) Enroll(c *fiber.Ctx) error {
 
 	if errors.Is(err, repository.ErrNotFound) {
 		return helper.NotFound("kelas tidak ditemukan")
+	}
+	if errors.Is(err, repository.ErrCreditLimitExceeded) {
+		return helper.ConflictWithCode("CREDIT_LIMIT_EXCEEDED", "batas 24 SKS terlampaui")
 	}
 	if errors.Is(err, repository.ErrDuplicate) {
 		return helper.ConflictWithCode("ALREADY_ENROLLED", "mahasiswa sudah terdaftar di kelas ini")
@@ -148,7 +210,16 @@ func (s *CourseService) Enroll(c *fiber.Ctx) error {
 	return helper.Created(c, "berhasil mendaftar kelas", enrolled, "/api/v1/courses/"+strconv.Itoa(courseID))
 }
 
-// ---------- DELETE /courses/:id/enroll ----------
+// Drop godoc
+//
+// @Summary   Keluar dari sebuah kelas
+// @Tags      courses
+// @Param     id   path  int  true  "ID kelas"
+// @Success   204  "Berhasil keluar; tanpa body"
+// @Failure   401  {object}  model.ErrorResponse
+// @Failure   409  {object}  model.ErrorResponse  "NOT_ENROLLED"
+// @Security  BearerAuth
+// @Router    /courses/{id}/enroll [delete]
 func (s *CourseService) Drop(c *fiber.Ctx) error {
 	ctx, cancel := helper.RequestContext(c)
 	defer cancel()
@@ -200,7 +271,22 @@ func (s *CourseService) Drop(c *fiber.Ctx) error {
 	return helper.NoContent(c)
 }
 
-// ---------- POST /courses/:id/swap ----------
+// Swap godoc
+//
+// @Summary      Pindah kelas
+// @Description  Keluar dari kelas lama dan masuk ke kelas baru sebagai satu tindakan. Bila kelas baru penuh, mahasiswa tetap di kelas lama.
+// @Tags         courses
+// @Accept       json
+// @Produce      json
+// @Param        id    path      int                      true  "ID kelas asal"
+// @Param        body  body      model.SwapCourseRequest  true  "Kelas tujuan"
+// @Success      200   {object}  model.WebResponse{data=model.Course}
+// @Failure      400   {object}  model.ErrorResponse
+// @Failure      401   {object}  model.ErrorResponse
+// @Failure      404   {object}  model.ErrorResponse
+// @Failure      409   {object}  model.ErrorResponse  "COURSE_FULL atau ALREADY_ENROLLED"
+// @Security     BearerAuth
+// @Router       /courses/{id}/swap [post]
 func (s *CourseService) Swap(c *fiber.Ctx) error {
 	ctx, cancel := helper.RequestContext(c)
 	defer cancel()
@@ -291,7 +377,22 @@ func (s *CourseService) Swap(c *fiber.Ctx) error {
 	return helper.Success(c, fiber.StatusOK, "berhasil pindah kelas", joined)
 }
 
-// ---------- PATCH /courses/:id ---------- (D.2: Dengan Transaksi dan Outbox Event)
+// UpdateQuota godoc
+//
+// @Summary      Mengubah kuota kelas (admin)
+// @Description  Optimistic locking menggunakan version.
+// @Tags         courses
+// @Accept       json
+// @Produce      json
+// @Param        id    path      int                       true  "ID kelas"
+// @Param        body  body      model.UpdateQuotaRequest  true  "Kuota baru dan version"
+// @Success      200   {object}  model.WebResponse{data=model.Course}
+// @Failure      400   {object}  model.ErrorResponse
+// @Failure      403   {object}  model.ErrorResponse
+// @Failure      404   {object}  model.ErrorResponse
+// @Failure      409   {object}  model.ErrorResponse  "VERSION_CONFLICT atau QUOTA_BELOW_FILLED"
+// @Security     BearerAuth
+// @Router       /courses/{id} [patch]
 func (s *CourseService) UpdateQuota(c *fiber.Ctx) error {
 	ctx, cancel := helper.RequestContext(c)
 	defer cancel()

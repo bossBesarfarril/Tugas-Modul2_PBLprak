@@ -28,3 +28,9 @@ type UpdateQuotaRequest struct {
 	Quota   int `json:"quota"`
 	Version int `json:"version"`
 }
+
+type MyCourses struct {
+	Courses      []Course `json:"courses"`
+	TotalCredits int      `json:"total_credits"`
+	MaxCredits   int      `json:"max_credits"`
+}

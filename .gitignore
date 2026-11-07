@@ -1,2 +1,5 @@
 .env
+.env.test
+coverage.out
 logs/
+*.test.exe

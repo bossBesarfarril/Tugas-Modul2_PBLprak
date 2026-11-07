@@ -9,4 +9,7 @@ ALTER TABLE notifications
 -- Memungkinkan 1 outbox broadcast menghasilkan notifikasi ke banyak mahasiswa,
 -- sekaligus menjamin idempotensi per-mahasiswa saat terjadi retry.
 ALTER TABLE notifications 
+    DROP CONSTRAINT IF EXISTS notifications_outbox_user_unique;
+
+ALTER TABLE notifications 
     ADD CONSTRAINT notifications_outbox_user_unique UNIQUE (outbox_id, user_id);

@@ -35,7 +35,15 @@ func NewNotificationService(
 	}
 }
 
-// ---------- GET /notifications/mine ----------
+// Mine godoc
+//
+// @Summary   Notifikasi milik mahasiswa yang sedang login
+// @Tags      notifications
+// @Produce   json
+// @Success   200  {object}  model.WebResponse{data=[]model.Notification}
+// @Failure   401  {object}  model.ErrorResponse
+// @Security  BearerAuth
+// @Router    /notifications/mine [get]
 func (s *NotificationService) Mine(c *fiber.Ctx) error {
 	ctx, cancel := helper.RequestContext(c)
 	defer cancel()
@@ -52,7 +60,16 @@ func (s *NotificationService) Mine(c *fiber.Ctx) error {
 	return helper.Success(c, fiber.StatusOK, "notifikasi berhasil diambil", list)
 }
 
-// ---------- GET /admin/queue ----------
+// Monitor godoc
+//
+// @Summary      Keadaan outbox dan queue (admin)
+// @Description  Membutuhkan permission course:manage. Tetap menjawab 200 saat Redis mati; field queue_error menjelaskan sebabnya.
+// @Tags         admin
+// @Produce      json
+// @Success      200  {object}  model.WebResponse{data=model.QueueStats}
+// @Failure      403  {object}  model.ErrorResponse
+// @Security     BearerAuth
+// @Router       /admin/queue [get]
 func (s *NotificationService) Monitor(c *fiber.Ctx) error {
 	ctx, cancel := helper.RequestContext(c)
 	defer cancel()

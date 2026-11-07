@@ -16,7 +16,7 @@ func BuildMessage(eventType string, event model.EnrollmentEvent, user model.User
 
 	switch eventType {
 	case model.EventEnrollmentCreated:
-		subject = "KRS: berhasil mendaftar " + course
+		subject = "KRS: berhasil terdaftar di " + course
 		body = fmt.Sprintf("Halo %s, Anda berhasil terdaftar pada kelas %s.", user.Username, course)
 
 	case model.EventEnrollmentDropped:

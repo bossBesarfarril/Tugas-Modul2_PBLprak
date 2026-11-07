@@ -53,6 +53,15 @@ func (m *JWTManager) GenerateAccess(user model.User) (string, error) {
 	return token.SignedString(m.secret)
 }
 
+// GenerateAccessToken mendukung pemanggilan menggunakan model.AuthUser (Modul 12).
+func (m *JWTManager) GenerateAccessToken(authUser model.AuthUser) (string, error) {
+	return m.GenerateAccess(model.User{
+		ID:       authUser.UserID,
+		Username: authUser.Username,
+		Role:     authUser.Role,
+	})
+}
+
 // Parse memeriksa validitas JWT dan mengembalikan identitas user di dalamnya.
 func (m *JWTManager) Parse(tokenString string) (model.AuthUser, error) {
 	var claims JWTClaims

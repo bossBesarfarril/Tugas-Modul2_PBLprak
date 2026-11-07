@@ -11,9 +11,10 @@ import (
 )
 
 var (
-	ErrCourseFull       = errors.New("kelas sudah penuh")
-	ErrVersionConflict  = errors.New("konflik versi kuota")
-	ErrQuotaBelowFilled = errors.New("kuota baru lebih kecil dari jumlah mahasiswa terdaftar")
+	ErrCourseFull           = errors.New("kelas sudah penuh")
+	ErrVersionConflict      = errors.New("konflik versi kuota")
+	ErrQuotaBelowFilled     = errors.New("kuota baru lebih kecil dari jumlah mahasiswa terdaftar")
+	ErrCreditLimitExceeded  = errors.New("batas SKS terlampaui")
 )
 
 type CourseRepository interface {
@@ -23,12 +24,15 @@ type CourseRepository interface {
 	FindByID(ctx context.Context, id int) (model.Course, error)
 	FindByStudent(ctx context.Context, userID int) ([]model.Course, error)
 	LockCourses(ctx context.Context, ids ...int) error
+	LockStudent(ctx context.Context, userID int) error
+	SumCredits(ctx context.Context, userID int) (int, error)
 	IncrementEnrolled(ctx context.Context, courseID int) (model.Course, error)
 	DecrementEnrolled(ctx context.Context, courseID int) (model.Course, error)
 	InsertEnrollment(ctx context.Context, courseID, userID int) error
 	DeleteEnrollment(ctx context.Context, courseID, userID int) error
 	UpdateQuota(ctx context.Context, id, quota, version int) (model.Course, error)
 	FindEnrolledUsers(ctx context.Context, courseID int) ([]int, error)
+	IsEnrolled(ctx context.Context, courseID, userID int) (bool, error)
 }
 
 const courseColumns = `id, code, name, credits, quota, enrolled_count, version, created_at`
@@ -114,6 +118,32 @@ func (r *coursePostgresRepository) LockCourses(ctx context.Context, ids ...int) 
 	return nil
 }
 
+func (r *coursePostgresRepository) LockStudent(ctx context.Context, userID int) error {
+	var id int
+	err := r.db.QueryRow(ctx, "SELECT id FROM users WHERE id = $1 FOR UPDATE", userID).Scan(&id)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrNotFound
+		}
+		return fmt.Errorf("mengunci mahasiswa: %w", err)
+	}
+	return nil
+}
+
+func (r *coursePostgresRepository) SumCredits(ctx context.Context, userID int) (int, error) {
+	var total int
+	err := r.db.QueryRow(ctx, `
+		SELECT COALESCE(SUM(c.credits), 0)
+		FROM enrollments e
+		JOIN courses c ON c.id = e.course_id
+		WHERE e.user_id = $1
+	`, userID).Scan(&total)
+	if err != nil {
+		return 0, fmt.Errorf("menghitung total SKS: %w", err)
+	}
+	return total, nil
+}
+
 func (r *coursePostgresRepository) IncrementEnrolled(ctx context.Context, courseID int) (model.Course, error) {
 	c, err := scanCourse(r.db.QueryRow(ctx,
 		`UPDATE courses SET enrolled_count = enrolled_count + 1
@@ -190,6 +220,17 @@ func (r *coursePostgresRepository) UpdateQuota(ctx context.Context, id, quota, v
 		return model.Course{}, ErrVersionConflict
 	}
 	return model.Course{}, ErrQuotaBelowFilled
+}
+
+func (r *coursePostgresRepository) IsEnrolled(ctx context.Context, courseID, userID int) (bool, error) {
+	var exists bool
+	err := r.db.QueryRow(ctx,
+		"SELECT EXISTS (SELECT 1 FROM enrollments WHERE course_id = $1 AND user_id = $2)",
+		courseID, userID).Scan(&exists)
+	if err != nil {
+		return false, fmt.Errorf("memeriksa pendaftaran: %w", err)
+	}
+	return exists, nil
 }
 
 func (r *coursePostgresRepository) FindEnrolledUsers(ctx context.Context, courseID int) ([]int, error) {
